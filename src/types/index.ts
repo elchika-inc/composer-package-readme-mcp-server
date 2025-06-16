@@ -52,12 +52,21 @@ export interface DownloadStats {
 
 export interface PackageSearchResult {
   name: string;
+  version: string;
   description: string;
-  url: string;
-  repository: string;
-  downloads: number;
-  favers: number;
-  abandoned: boolean | string;
+  keywords: string[];
+  author: string;
+  publisher: string;
+  maintainers: string[];
+  score: {
+    final: number;
+    detail: {
+      quality: number;
+      popularity: number;
+      maintenance: number;
+    };
+  };
+  searchScore: number;
 }
 
 // Tool Parameters
@@ -77,6 +86,8 @@ export interface GetPackageInfoParams {
 export interface SearchPackagesParams {
   query: string;          // Search query
   limit?: number;         // Maximum number of results (default: 20)
+  quality?: number;       // Minimum quality score (0-1)
+  popularity?: number;    // Minimum popularity score (0-1)
   type?: string;          // Filter by package type
 }
 
@@ -97,21 +108,24 @@ export interface PackageInfoResponse {
   package_name: string;
   latest_version: string;
   description: string;
-  type: string;
-  license: string | string[];
-  authors: AuthorInfo[];
+  author: string;
+  license: string;
   keywords: string[];
   dependencies?: Record<string, string> | undefined;
   dev_dependencies?: Record<string, string> | undefined;
-  suggestions?: Record<string, string> | undefined;
-  download_stats: DownloadStats;
+  download_stats: {
+    last_day: number;
+    last_week: number;
+    last_month: number;
+  };
   repository?: RepositoryInfo | undefined;
+  exists: boolean;
 }
 
 export interface SearchPackagesResponse {
   query: string;
-  results: PackageSearchResult[];
-  total?: number;
+  total: number;
+  packages: PackageSearchResult[];
 }
 
 // Cache Types

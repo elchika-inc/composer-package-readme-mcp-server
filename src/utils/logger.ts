@@ -28,15 +28,9 @@ class Logger {
       return;
     }
 
-    const entry: LogEntry = {
-      level,
-      message,
-      timestamp: new Date(),
-      data,
-    };
-
+    const timestamp = new Date();
     const levelName = LogLevel[level];
-    const logMessage = `[${entry.timestamp.toISOString()}] ${levelName}: ${message}`;
+    const logMessage = `[${timestamp.toISOString()}] ${levelName}: ${message}`;
 
     switch (level) {
       case LogLevel.ERROR:

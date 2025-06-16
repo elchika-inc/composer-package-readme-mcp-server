@@ -20,6 +20,40 @@ export class PackagistApiClient {
     this.timeout = timeout || API_CONSTANTS.DEFAULT_TIMEOUT_MS;
   }
 
+  async checkPackageExists(packageName: string): Promise<boolean> {
+    const url = `${this.baseUrl}/${encodeURIComponent(packageName)}.json`;
+    
+    return withRetry(async () => {
+      logger.debug(`Checking package existence: ${packageName}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      
+      try {
+        const response = await fetch(url, {
+          method: 'HEAD',
+          signal: controller.signal,
+          headers: {
+            'User-Agent': API_CONSTANTS.USER_AGENT,
+          },
+        });
+
+        const exists = response.ok;
+        logger.debug(`Package existence check: ${packageName} - ${exists ? 'exists' : 'not found'}`);
+        return exists;
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') {
+          logger.warn(`Package existence check timeout: ${packageName}`);
+          return false;
+        }
+        logger.warn(`Package existence check failed: ${packageName}`, { error });
+        return false;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }, 3, 1000, `packagist checkPackageExists(${packageName})`);
+  }
+
   async getPackageInfo(packageName: string): Promise<PackagistPackageInfo> {
     const url = `${this.baseUrl}/${encodeURIComponent(packageName)}.json`;
     

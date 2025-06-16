@@ -3,6 +3,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ErrorCode,
+  ListPromptsRequestSchema,
+  ListResourcesRequestSchema,
   ListToolsRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
@@ -44,7 +46,7 @@ const TOOL_DEFINITIONS = {
           type: 'boolean',
           description: 'Whether to include usage examples (default: true)',
           default: true,
-        },
+        }
       },
       required: ['package_name'],
     },
@@ -73,7 +75,7 @@ const TOOL_DEFINITIONS = {
           type: 'boolean',
           description: 'Whether to include suggested packages (default: false)',
           default: false,
-        },
+        }
       },
       required: ['package_name'],
     },
@@ -95,11 +97,23 @@ const TOOL_DEFINITIONS = {
           minimum: 1,
           maximum: 100,
         },
+        quality: {
+          type: 'number',
+          description: 'Minimum quality score (0-1)',
+          minimum: 0,
+          maximum: 1,
+        },
+        popularity: {
+          type: 'number',
+          description: 'Minimum popularity score (0-1)',
+          minimum: 0,
+          maximum: 1,
+        },
         type: {
           type: 'string',
           description: 'Package type filter (e.g., "library", "symfony-bundle", "wordpress-plugin")',
           enum: [...PACKAGE_TYPES],
-        },
+        }
       },
       required: ['query'],
     },
@@ -118,7 +132,9 @@ export class ComposerPackageReadmeMcpServer {
       {
         capabilities: {
           tools: {},
-        },
+          prompts: {},
+          resources: {}
+        }
       }
     );
 
@@ -127,14 +143,24 @@ export class ComposerPackageReadmeMcpServer {
 
   private setupHandlers(): void {
     // List available tools
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    (this.server as any).setRequestHandler(ListToolsRequestSchema, async () => {
       return {
         tools: Object.values(TOOL_DEFINITIONS),
       };
     });
 
+    // Handle prompts list
+    (this.server as any).setRequestHandler(ListPromptsRequestSchema, async () => {
+      return { prompts: [] };
+    });
+
+    // Handle resources list
+    (this.server as any).setRequestHandler(ListResourcesRequestSchema, async () => {
+      return { resources: [] };
+    });
+
     // Handle tool calls
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    (this.server as any).setRequestHandler(CallToolRequestSchema, async (request: any, _extra: any) => {
       const { name, arguments: args } = request.params;
       
 
@@ -210,9 +236,9 @@ export class ComposerPackageReadmeMcpServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(result, null, 2),
-        },
-      ],
+          text: JSON.stringify(result, null, 2)
+        }
+      ]
     };
   }
 
@@ -222,9 +248,9 @@ export class ComposerPackageReadmeMcpServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(result, null, 2),
-        },
-      ],
+          text: JSON.stringify(result, null, 2)
+        }
+      ]
     };
   }
 
@@ -234,9 +260,9 @@ export class ComposerPackageReadmeMcpServer {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(result, null, 2),
-        },
-      ],
+          text: JSON.stringify(result, null, 2)
+        }
+      ]
     };
   }
 
@@ -263,7 +289,7 @@ export class ComposerPackageReadmeMcpServer {
   async run(): Promise<void> {
     try {
       const transport = new StdioServerTransport();
-      await this.server.connect(transport);
+      await (this.server as any).connect(transport);
     } catch (error) {
       logger.error('Failed to start server transport', { error });
       throw error;
@@ -271,7 +297,7 @@ export class ComposerPackageReadmeMcpServer {
   }
 
   async stop(): Promise<void> {
-    await this.server.close();
+    await (this.server as any).close();
   }
 }
 

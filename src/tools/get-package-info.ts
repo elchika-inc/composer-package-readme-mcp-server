@@ -36,6 +36,31 @@ async function fetchPackageInfo(
 ): Promise<PackageInfoResponse> {
 
   try {
+    // Check package existence first
+    logger.debug(`Checking package existence: ${packageName}`);
+    const packageExists = await packagistApi.checkPackageExists(packageName);
+    
+    if (!packageExists) {
+      logger.info(`Package not found: ${packageName}`);
+      return {
+        package_name: packageName,
+        latest_version: '',
+        description: '',
+        author: '',
+        license: '',
+        keywords: [],
+        dependencies: undefined,
+        dev_dependencies: undefined,
+        download_stats: {
+          last_day: 0,
+          last_week: 0,
+          last_month: 0,
+        },
+        repository: undefined,
+        exists: false,
+      };
+    }
+
     // Get package info from Packagist
     const packageInfo = await packagistApi.getPackageInfo(packageName);
     
@@ -55,20 +80,28 @@ async function fetchPackageInfo(
       };
     }
 
-    // Create response
+    // Extract author string from authors array
+    const authorString = latestVersionInfo.authors && latestVersionInfo.authors.length > 0 
+      ? latestVersionInfo.authors[0]?.name || ''
+      : '';
+
+    // Create response according to specification
     const response: PackageInfoResponse = {
       package_name: packageName,
       latest_version: latestVersionInfo.version,
       description: latestVersionInfo.description || packageInfo.description || 'No description available',
-      type: latestVersionInfo.type || 'library',
-      license: latestVersionInfo.license || ['Unknown'],
-      authors: latestVersionInfo.authors || [],
+      author: authorString,
+      license: Array.isArray(latestVersionInfo.license) ? latestVersionInfo.license.join(', ') : (latestVersionInfo.license || 'Unknown'),
       keywords: latestVersionInfo.keywords || [],
       dependencies: includeDependencies ? latestVersionInfo.require : undefined,
       dev_dependencies: includeDevDependencies ? latestVersionInfo.require_dev : undefined,
-      suggestions: includeSuggestions ? latestVersionInfo.suggest : undefined,
-      download_stats: downloadStats,
-      repository: repository || undefined,
+      download_stats: {
+        last_day: downloadStats.daily,
+        last_week: downloadStats.daily * 7, // Approximate weekly from daily
+        last_month: downloadStats.monthly,
+      },
+      repository,
+      exists: true,
     };
 
     logger.info(`Successfully fetched package info: ${packageName}@${latestVersionInfo.version}`);
@@ -76,6 +109,24 @@ async function fetchPackageInfo(
 
   } catch (error) {
     logger.error(`Failed to fetch package info: ${packageName}`, { error });
-    throw error;
+    
+    // Return error response with exists: false
+    return {
+      package_name: packageName,
+      latest_version: '',
+      description: '',
+      author: '',
+      license: '',
+      keywords: [],
+      dependencies: undefined,
+      dev_dependencies: undefined,
+      download_stats: {
+        last_day: 0,
+        last_week: 0,
+        last_month: 0,
+      },
+      repository: undefined,
+      exists: false,
+    };
   }
 }

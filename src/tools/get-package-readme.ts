@@ -4,6 +4,7 @@ import { packagistApi } from '../services/packagist-api.js';
 import { githubApi } from '../services/github-api.js';
 import { readmeParser } from '../services/readme-parser.js';
 import { withCache, createPackageReadmeCacheKey } from '../utils/cache-helpers.js';
+import { searchPackages } from './search-packages.js';
 import {
   GetPackageReadmeParams,
   PackageReadmeResponse,
@@ -38,6 +39,18 @@ async function fetchPackageReadme(
 ): Promise<PackageReadmeResponse> {
 
   try {
+    // First, search to verify package exists
+    logger.debug(`Searching for package existence: ${packageName}`);
+    const searchResult = await searchPackages({ query: packageName, limit: 10 });
+    
+    // Check if the exact package name exists in search results
+    const exactMatch = searchResult.packages.find((pkg: any) => pkg.name === packageName);
+    if (!exactMatch) {
+      throw new Error(`Package '${packageName}' not found in Packagist registry`);
+    }
+    
+    logger.debug(`Package found in search results: ${packageName}`);
+
     // Get package info from Packagist
     const versionInfo = await packagistApi.getVersionInfo(packageName, version);
 
