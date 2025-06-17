@@ -102,6 +102,7 @@ export interface PackageReadmeResponse {
   basic_info: PackageBasicInfo;
   repository?: RepositoryInfo | undefined;
   download_stats?: DownloadStats;
+  exists: boolean;
 }
 
 export interface PackageInfoResponse {

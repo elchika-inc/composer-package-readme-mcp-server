@@ -4,7 +4,6 @@ import { packagistApi } from '../services/packagist-api.js';
 import { githubApi } from '../services/github-api.js';
 import { readmeParser } from '../services/readme-parser.js';
 import { withCache, createPackageReadmeCacheKey } from '../utils/cache-helpers.js';
-import { searchPackages } from './search-packages.js';
 import {
   GetPackageReadmeParams,
   PackageReadmeResponse,
@@ -39,20 +38,40 @@ async function fetchPackageReadme(
 ): Promise<PackageReadmeResponse> {
 
   try {
-    // First, search to verify package exists
-    logger.debug(`Searching for package existence: ${packageName}`);
-    const searchResult = await searchPackages({ query: packageName, limit: 10 });
+    // Get package info from Packagist directly
+    let versionInfo;
     
-    // Check if the exact package name exists in search results
-    const exactMatch = searchResult.packages.find((pkg: any) => pkg.name === packageName);
-    if (!exactMatch) {
-      throw new Error(`Package '${packageName}' not found in Packagist registry`);
+    try {
+      logger.debug(`Getting package info for: ${packageName}@${version}`);
+      versionInfo = await packagistApi.getVersionInfo(packageName, version);
+    } catch (error) {
+      // If package not found, return a response indicating non-existence
+      logger.debug(`Package not found: ${packageName}`);
+      return {
+        package_name: packageName,
+        version: version || 'latest',
+        description: 'Package not found',
+        readme_content: '',
+        usage_examples: [],
+        installation: {
+          composer: `composer require ${packageName}`,
+          version: version !== 'latest' ? version : undefined,
+        },
+        basic_info: {
+          name: packageName,
+          version: version || 'latest',
+          description: 'Package not found',
+          type: 'library',
+          license: 'Unknown',
+          authors: [],
+          keywords: [],
+          homepage: undefined,
+        },
+        exists: false,
+      };
     }
     
-    logger.debug(`Package found in search results: ${packageName}`);
-
-    // Get package info from Packagist
-    const versionInfo = await packagistApi.getVersionInfo(packageName, version);
+    logger.debug(`Package info retrieved for: ${packageName}@${versionInfo.version}`);
 
     // Get actual version string (in case we requested 'latest')
     const actualVersion = versionInfo.version;
@@ -106,6 +125,7 @@ async function fetchPackageReadme(
       basic_info: basicInfo,
       repository,
       download_stats: downloadStats,
+      exists: true,
     };
 
     logger.info(`Successfully fetched package README: ${packageName}@${actualVersion} (README source: ${readmeSource})`);

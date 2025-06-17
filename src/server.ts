@@ -27,8 +27,8 @@ import {
 import { PACKAGE_TYPES } from './utils/constants.js';
 
 const TOOL_DEFINITIONS = {
-  get_package_readme: {
-    name: 'get_package_readme',
+  get_readme_from_composer: {
+    name: 'get_readme_from_composer',
     description: 'Get Composer package README and usage examples from Packagist',
     inputSchema: {
       type: 'object',
@@ -51,8 +51,8 @@ const TOOL_DEFINITIONS = {
       required: ['package_name'],
     },
   },
-  get_package_info: {
-    name: 'get_package_info',
+  get_package_info_from_composer: {
+    name: 'get_package_info_from_composer',
     description: 'Get Composer package basic information and dependencies from Packagist',
     inputSchema: {
       type: 'object',
@@ -80,8 +80,8 @@ const TOOL_DEFINITIONS = {
       required: ['package_name'],
     },
   },
-  search_packages: {
-    name: 'search_packages',
+  search_packages_from_composer: {
+    name: 'search_packages_from_composer',
     description: 'Search for Composer packages in Packagist',
     inputSchema: {
       type: 'object',
@@ -174,7 +174,7 @@ export class ComposerPackageReadmeMcpServer {
         }
 
         switch (name) {
-          case 'get_package_readme':
+          case 'get_readme_from_composer':
             if (!isGetPackageReadmeParams(args)) {
               throw new McpError(
                 ErrorCode.InvalidParams,
@@ -183,7 +183,7 @@ export class ComposerPackageReadmeMcpServer {
             }
             return await this.handleGetPackageReadme(args);
           
-          case 'get_package_info':
+          case 'get_package_info_from_composer':
             if (!isGetPackageInfoParams(args)) {
               throw new McpError(
                 ErrorCode.InvalidParams,
@@ -192,7 +192,7 @@ export class ComposerPackageReadmeMcpServer {
             }
             return await this.handleGetPackageInfo(args);
           
-          case 'search_packages':
+          case 'search_packages_from_composer':
             if (!isSearchPackagesParams(args)) {
               throw new McpError(
                 ErrorCode.InvalidParams,
