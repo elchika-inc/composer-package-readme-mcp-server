@@ -8,17 +8,55 @@ export function validatePackageName(packageName: string): void {
 
   const trimmed = packageName.trim();
   if (trimmed.length === 0) {
-    throw new PackageReadmeMcpError('Package name cannot be empty', 'INVALID_PACKAGE_NAME');
+    throw new PackageReadmeMcpError(
+      'Package name cannot be empty. Please provide a valid Composer package name like "monolog/monolog" or "symfony/console".',
+      'INVALID_PACKAGE_NAME'
+    );
   }
 
   if (trimmed.length > VALIDATION_CONSTANTS.MAX_PACKAGE_NAME_LENGTH) {
-    throw new PackageReadmeMcpError(`Package name cannot exceed ${VALIDATION_CONSTANTS.MAX_PACKAGE_NAME_LENGTH} characters`, 'INVALID_PACKAGE_NAME');
+    throw new PackageReadmeMcpError(
+      `Package name cannot exceed ${VALIDATION_CONSTANTS.MAX_PACKAGE_NAME_LENGTH} characters (current: ${trimmed.length})`,
+      'INVALID_PACKAGE_NAME'
+    );
   }
 
-  // Composer package name validation rules (vendor/package format)
+  // Check for common mistakes and provide suggestions
+  if (!trimmed.includes('/')) {
+    throw new PackageReadmeMcpError(
+      `Package name "${trimmed}" is missing vendor prefix. Composer packages must use vendor/package format. Example: "monolog/${trimmed}" or "symfony/${trimmed}".`,
+      'INVALID_PACKAGE_NAME'
+    );
+  }
+
+  if (trimmed.includes(' ')) {
+    throw new PackageReadmeMcpError(
+      `Package name "${trimmed}" contains spaces. Composer package names cannot contain spaces. Did you mean "${trimmed.replace(/\s+/g, '-')}"?`,
+      'INVALID_PACKAGE_NAME'
+    );
+  }
+
+  if (/[A-Z]/.test(trimmed)) {
+    throw new PackageReadmeMcpError(
+      `Package name "${trimmed}" contains uppercase letters. Composer package names must be lowercase. Did you mean "${trimmed.toLowerCase()}"?`,
+      'INVALID_PACKAGE_NAME'
+    );
+  }
+
+  // Check for invalid characters
+  const invalidCharsMatch = trimmed.match(/[^a-z0-9_.\/-]/g);
+  if (invalidCharsMatch) {
+    const invalidChars = Array.from(new Set(invalidCharsMatch));
+    throw new PackageReadmeMcpError(
+      `Package name "${trimmed}" contains invalid characters: ${invalidChars.join(', ')}. Composer package names can only contain lowercase letters, numbers, dots (.), hyphens (-), underscores (_), and exactly one slash (/). Examples: "monolog/monolog", "symfony/console", "laravel/framework".`,
+      'INVALID_PACKAGE_NAME'
+    );
+  }
+
+  // Validate vendor/package format
   if (!/^[a-z0-9_.-]+\/[a-z0-9_.-]+$/.test(trimmed)) {
     throw new PackageReadmeMcpError(
-      'Package name must be in vendor/package format with lowercase letters, numbers, dots, hyphens, and underscores only',
+      `Package name "${trimmed}" is not in valid vendor/package format. Valid examples: "monolog/monolog", "symfony/console", "doctrine/orm".`,
       'INVALID_PACKAGE_NAME'
     );
   }
@@ -26,18 +64,56 @@ export function validatePackageName(packageName: string): void {
   // Check for reserved words or invalid patterns
   const parts = trimmed.split('/');
   if (parts.length !== 2) {
-    throw new PackageReadmeMcpError('Package name must contain exactly one slash', 'INVALID_PACKAGE_NAME');
+    const slashCount = (trimmed.match(/\//g) || []).length;
+    if (slashCount === 0) {
+      throw new PackageReadmeMcpError(
+        `Package name "${trimmed}" is missing vendor prefix. Format should be "vendor/package".`,
+        'INVALID_PACKAGE_NAME'
+      );
+    } else {
+      throw new PackageReadmeMcpError(
+        `Package name "${trimmed}" contains ${slashCount} slashes but must contain exactly one. Format should be "vendor/package".`,
+        'INVALID_PACKAGE_NAME'
+      );
+    }
   }
 
-  for (const part of parts) {
-    if (part.length === 0) {
-      throw new PackageReadmeMcpError('Package name parts cannot be empty', 'INVALID_PACKAGE_NAME');
-    }
+  const vendor = parts[0];
+  const package_name = parts[1];
+  
+  if (!vendor || vendor.length === 0) {
+    throw new PackageReadmeMcpError(
+      `Package name "${trimmed}" has empty vendor name. Vendor name must not be empty. Example: "monolog/monolog".`,
+      'INVALID_PACKAGE_NAME'
+    );
+  }
+  
+  if (!package_name || package_name.length === 0) {
+    throw new PackageReadmeMcpError(
+      `Package name "${trimmed}" has empty package name. Package name must not be empty. Example: "monolog/monolog".`,
+      'INVALID_PACKAGE_NAME'
+    );
+  }
+
+  const partChecks: Array<[string, string]> = [['vendor', vendor], ['package', package_name]];
+  for (const [partName, part] of partChecks) {
     if (part.startsWith('.') || part.endsWith('.')) {
-      throw new PackageReadmeMcpError('Package name parts cannot start or end with a dot', 'INVALID_PACKAGE_NAME');
+      throw new PackageReadmeMcpError(
+        `${partName.charAt(0).toUpperCase() + partName.slice(1)} name "${part}" cannot start or end with a dot. Valid ${partName} names: "monolog", "symfony", "doctrine".`,
+        'INVALID_PACKAGE_NAME'
+      );
     }
     if (part.startsWith('-') || part.endsWith('-')) {
-      throw new PackageReadmeMcpError('Package name parts cannot start or end with a hyphen', 'INVALID_PACKAGE_NAME');
+      throw new PackageReadmeMcpError(
+        `${partName.charAt(0).toUpperCase() + partName.slice(1)} name "${part}" cannot start or end with a hyphen. Valid ${partName} names: "monolog", "symfony", "doctrine".`,
+        'INVALID_PACKAGE_NAME'
+      );
+    }
+    if (part.startsWith('_') || part.endsWith('_')) {
+      throw new PackageReadmeMcpError(
+        `${partName.charAt(0).toUpperCase() + partName.slice(1)} name "${part}" cannot start or end with an underscore. Valid ${partName} names: "monolog", "symfony", "doctrine".`,
+        'INVALID_PACKAGE_NAME'
+      );
     }
   }
 }
