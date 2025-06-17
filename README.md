@@ -1,110 +1,148 @@
 # Composer Package README MCP Server
 
-MCP server for fetching Composer package README and usage information from Packagist.
+[![npm version](https://img.shields.io/npm/v/composer-package-readme-mcp-server)](https://www.npmjs.com/package/composer-package-readme-mcp-server)
+[![npm downloads](https://img.shields.io/npm/dm/composer-package-readme-mcp-server)](https://www.npmjs.com/package/composer-package-readme-mcp-server)
+[![GitHub stars](https://img.shields.io/github/stars/naoto24kawa/composer-package-readme-mcp-server)](https://github.com/naoto24kawa/composer-package-readme-mcp-server)
+[![GitHub issues](https://img.shields.io/github/issues/naoto24kawa/composer-package-readme-mcp-server)](https://github.com/naoto24kawa/composer-package-readme-mcp-server/issues)
+[![license](https://img.shields.io/npm/l/composer-package-readme-mcp-server)](https://github.com/naoto24kawa/composer-package-readme-mcp-server/blob/main/LICENSE)
+
+An MCP (Model Context Protocol) server that enables AI assistants to fetch comprehensive information about Composer packages from Packagist, including README content, package metadata, and search functionality.
 
 ## Features
 
-- **Get Package README**: Fetch package README content and usage examples
-- **Get Package Info**: Retrieve basic package information, dependencies, and statistics
-- **Search Packages**: Search for packages on Packagist with filtering options
-- **Caching**: Intelligent caching to reduce API calls and improve performance
-- **Error Handling**: Comprehensive error handling with retry logic
+- **📚 Package README Retrieval**: Fetch formatted README content with usage examples from GitHub repositories
+- **📊 Package Information**: Get comprehensive package metadata including dependencies, versions, and statistics
+- **🔍 Package Search**: Search Packagist with advanced filtering by type, popularity, and relevance
+- **⚡ Smart Caching**: Intelligent caching system to optimize API usage and improve response times
+- **🛡️ Robust Error Handling**: Comprehensive error handling with automatic retry logic and fallback strategies
+- **🔗 GitHub Integration**: Seamless integration with GitHub API for enhanced README fetching
 
 ## Installation
 
-### Using npm
+### Prerequisites
+
+- Node.js 18.0.0 or higher
+- npm or yarn package manager
+
+### Install via npm
 
 ```bash
 npm install -g composer-package-readme-mcp-server
 ```
 
-### Using the MCP Server
+### Claude Desktop Configuration
 
-Add to your Claude Desktop configuration:
+Add this server to your Claude Desktop configuration file:
+
+**macOS/Linux**: `~/Library/Application\ Support/Claude/claude_desktop_config.json`  
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "composer-package-readme": {
-      "command": "composer-package-readme-mcp-server"
+      "command": "composer-package-readme-mcp-server",
+      "env": {
+        "GITHUB_TOKEN": "your_github_token_here"
+      }
     }
   }
 }
 ```
 
+> **Note**: The `GITHUB_TOKEN` is optional but recommended for higher API rate limits when fetching README content.
+
 ## Available Tools
 
-### get_package_readme
+### 📖 `get_package_readme`
 
-Get package README and usage examples from Packagist.
+Retrieves comprehensive README content and usage examples for Composer packages.
 
 **Parameters:**
-- `package_name` (required): The name of the Composer package (vendor/package format)
-- `version` (optional): The version of the package (default: "latest")
-- `include_examples` (optional): Whether to include usage examples (default: true)
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `package_name` | string | ✅ | - | Composer package name in `vendor/package` format |
+| `version` | string | ❌ | `"latest"` | Specific package version or "latest" |
+| `include_examples` | boolean | ❌ | `true` | Include usage examples and code snippets |
 
-**Example:**
+**Example Usage:**
 ```json
 {
   "package_name": "symfony/console",
-  "version": "latest",
+  "version": "6.3.0",
   "include_examples": true
 }
 ```
 
-### get_package_info
+**Returns:** Formatted README content with installation instructions, usage examples, and API documentation.
 
-Get package basic information and dependencies from Packagist.
+---
+
+### 📋 `get_package_info`
+
+Fetches detailed package metadata, dependencies, and statistics from Packagist.
 
 **Parameters:**
-- `package_name` (required): The name of the Composer package
-- `include_dependencies` (optional): Whether to include dependencies (default: true)
-- `include_dev_dependencies` (optional): Whether to include development dependencies (default: false)
-- `include_suggestions` (optional): Whether to include suggested packages (default: false)
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `package_name` | string | ✅ | - | Composer package name |
+| `include_dependencies` | boolean | ❌ | `true` | Include runtime dependencies |
+| `include_dev_dependencies` | boolean | ❌ | `false` | Include development dependencies |
+| `include_suggestions` | boolean | ❌ | `false` | Include suggested packages |
 
-**Example:**
+**Example Usage:**
 ```json
 {
   "package_name": "laravel/framework",
   "include_dependencies": true,
-  "include_dev_dependencies": false
+  "include_dev_dependencies": true
 }
 ```
 
-### search_packages
+**Returns:** Package metadata including version info, maintainers, license, download stats, and dependency tree.
 
-Search for packages in Packagist.
+---
+
+### 🔍 `search_packages`
+
+Searches Packagist for packages with advanced filtering capabilities.
 
 **Parameters:**
-- `query` (required): The search query
-- `limit` (optional): Maximum number of results to return (default: 20, max: 100)
-- `type` (optional): Package type filter (e.g., "library", "symfony-bundle", "wordpress-plugin")
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `query` | string | ✅ | - | Search terms (package name, description, keywords) |
+| `limit` | number | ❌ | `20` | Max results to return (1-100) |
+| `type` | string | ❌ | - | Filter by package type (see supported types below) |
 
-**Example:**
+**Example Usage:**
 ```json
 {
-  "query": "http client",
-  "limit": 10,
+  "query": "http client guzzle",
+  "limit": 15,
   "type": "library"
 }
 ```
 
+**Returns:** List of matching packages with names, descriptions, download counts, and relevance scores.
+
 ## Supported Package Types
 
-- `library` - Standard PHP library
-- `project` - Project package
-- `metapackage` - Meta package
-- `composer-plugin` - Composer plugin
-- `symfony-bundle` - Symfony bundle
-- `wordpress-plugin` - WordPress plugin
-- `drupal-module` - Drupal module
-- `laravel-package` - Laravel package
-- `phpunit-test` - PHPUnit test package
-- `psr-implementation` - PSR implementation
+| Type | Description | Example |
+|------|-------------|---------|
+| `library` | Standard PHP library | `guzzlehttp/guzzle` |
+| `project` | Complete application/framework | `laravel/laravel` |
+| `metapackage` | Meta package (dependencies only) | `symfony/symfony` |
+| `composer-plugin` | Composer plugin | `composer/installers` |
+| `symfony-bundle` | Symfony bundle | `symfony/framework-bundle` |
+| `wordpress-plugin` | WordPress plugin | `wpackagist-plugin/akismet` |
+| `drupal-module` | Drupal module | `drupal/core` |
+| `laravel-package` | Laravel-specific package | `laravel/sanctum` |
+| `phpunit-test` | PHPUnit test package | `phpunit/phpunit` |
+| `psr-implementation` | PSR standard implementation | `psr/log` |
 
 ## Development
 
-### Setup
+### Local Development Setup
 
 ```bash
 # Clone the repository
@@ -114,65 +152,150 @@ cd composer-package-readme-mcp-server
 # Install dependencies
 npm install
 
-# Build the project
-npm run build
+# Start development server with hot reload
+npm run dev
 ```
 
 ### Available Scripts
 
-- `npm run build` - Build the TypeScript project
-- `npm run dev` - Run in development mode
-- `npm start` - Start the built server
-- `npm test` - Run tests
-- `npm run lint` - Run ESLint
-- `npm run typecheck` - Run TypeScript type checking
+| Script | Description |
+|--------|-------------|
+| `npm run build` | Compile TypeScript to JavaScript |
+| `npm run dev` | Start development server with hot reload |
+| `npm start` | Run the compiled server |
+| `npm test` | Execute test suite |
+| `npm run lint` | Run ESLint code analysis |
+| `npm run typecheck` | Validate TypeScript types |
 
-### Testing
+### Testing the Server
 
 ```bash
-# Run the server locally
+# Start the development server
 npm run dev
 
-# Test with a simple tool call
+# Test tool availability
 echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}' | npm run dev
+
+# Test package information retrieval
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "get_package_info", "arguments": {"package_name": "symfony/console"}}}' | npm run dev
+```
+
+### Debugging
+
+Enable debug logging by setting the environment variable:
+
+```bash
+LOG_LEVEL=DEBUG npm run dev
 ```
 
 ## Configuration
 
-The server can be configured through environment variables:
+### Environment Variables
 
-- `LOG_LEVEL` - Set logging level (ERROR, WARN, INFO, DEBUG)
-- `GITHUB_TOKEN` - GitHub token for enhanced API limits (optional)
-- `CACHE_TTL` - Cache TTL in milliseconds (default: 3600000 = 1 hour)
-- `MAX_CACHE_SIZE` - Maximum cache size in bytes (default: 104857600 = 100MB)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_LEVEL` | `INFO` | Logging level (`ERROR`, `WARN`, `INFO`, `DEBUG`) |
+| `GITHUB_TOKEN` | - | GitHub Personal Access Token (optional, recommended) |
+| `CACHE_TTL` | `3600000` | Cache time-to-live in milliseconds (1 hour) |
+| `MAX_CACHE_SIZE` | `104857600` | Maximum cache size in bytes (100MB) |
+| `REQUEST_TIMEOUT` | `30000` | HTTP request timeout in milliseconds |
+| `RETRY_ATTEMPTS` | `3` | Number of retry attempts for failed requests |
 
-## API Rate Limits
+### GitHub Token Setup
 
-- **Packagist**: No specific rate limits, but please be respectful
-- **GitHub**: 60 requests/hour without token, 5000 with token (for README fetching)
+To get enhanced API limits, create a GitHub Personal Access Token:
 
-## Error Handling
+1. Go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens)
+2. Generate a new token (classic)
+3. No special scopes needed for public repositories
+4. Add the token to your environment or Claude Desktop config
 
-The server includes comprehensive error handling:
+## API Rate Limits & Performance
 
-- **Package Not Found**: When a package doesn't exist on Packagist
-- **Version Not Found**: When a specific version doesn't exist
-- **Network Errors**: Connection timeouts and failures
-- **Rate Limiting**: Automatic retry with exponential backoff
-- **Validation Errors**: Invalid package names or parameters
+| Service | Unauthenticated | With Token | Notes |
+|---------|----------------|------------|-------|
+| **Packagist** | Unlimited* | Unlimited* | *Fair use policy applies |
+| **GitHub API** | 60/hour | 5,000/hour | For README content fetching |
+
+> **💡 Performance Tips:**
+> - Use GitHub token for better rate limits
+> - Enable caching for frequently accessed packages
+> - Batch multiple requests when possible
+
+## Error Handling & Resilience
+
+The server implements robust error handling with multiple fallback strategies:
+
+### Automatic Error Recovery
+- **🔄 Retry Logic**: Exponential backoff for transient failures
+- **🏃‍♂️ Graceful Degradation**: Fallback to basic info when README unavailable
+- **⚡ Circuit Breaker**: Prevents cascade failures during API outages
+- **🛡️ Input Validation**: Comprehensive parameter validation
+
+### Error Types Handled
+- **404 Package Not Found**: Clear error messages with suggestions
+- **403 Rate Limited**: Automatic retry with backoff
+- **Network Timeouts**: Configurable timeout with retry
+- **Invalid Versions**: Version resolution with fallback to latest
+
+## Use Cases
+
+This MCP server is perfect for:
+
+- **📚 Documentation Research**: Quickly access package documentation and usage examples
+- **🔍 Package Discovery**: Find suitable Composer packages for your PHP projects
+- **📊 Dependency Analysis**: Understand package dependencies and compatibility
+- **🏗️ Project Planning**: Evaluate packages before adding them to your project
+- **📖 Learning**: Explore popular PHP packages and their implementations
+
+## Troubleshooting
+
+### Common Issues
+
+**Package not found error**
+```bash
+# Verify package name format
+get_package_info symfony/console  # ✅ Correct
+get_package_info symfony-console  # ❌ Incorrect
+```
+
+**Rate limit exceeded**
+```bash
+# Add GitHub token to your config
+export GITHUB_TOKEN="your_token_here"
+```
+
+**Slow responses**
+```bash
+# Check cache settings
+export CACHE_TTL=7200000  # 2 hours
+export MAX_CACHE_SIZE=209715200  # 200MB
+```
+
+### Getting Help
+
+- **🐛 Bug Reports**: [GitHub Issues](https://github.com/your-repo/issues)
+- **💡 Feature Requests**: [GitHub Discussions](https://github.com/your-repo/discussions)
+- **📖 Documentation**: Check the README and source code comments
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) file for details
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-## Support
+1. **🍴 Fork** the repository
+2. **🌿 Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **💾 Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **📤 Push** to the branch (`git push origin feature/amazing-feature`)
+5. **🔄 Open** a Pull Request
 
-For issues and questions, please use the GitHub issue tracker.
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and updates.
+
+---
+
+**Made with ❤️ for the PHP community**
