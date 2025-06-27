@@ -1,32 +1,16 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ErrorCode,
-  ListPromptsRequestSchema,
-  ListResourcesRequestSchema,
-  ListToolsRequestSchema,
-  McpError,
-} from '@modelcontextprotocol/sdk/types.js';
-
-import { logger } from './utils/logger.js';
+import { BasePackageServer, ToolDefinition } from '@elchika-inc/package-readme-shared';
 import { getPackageReadme } from './tools/get-package-readme.js';
 import { getPackageInfo } from './tools/get-package-info.js';
 import { searchPackages } from './tools/search-packages.js';
 import {
-  isGetPackageReadmeParams,
-  isGetPackageInfoParams,
-  isSearchPackagesParams,
-} from './utils/type-guards.js';
-import {
   GetPackageReadmeParams,
   GetPackageInfoParams,
   SearchPackagesParams,
-  PackageReadmeMcpError,
 } from './types/index.js';
 import { PACKAGE_TYPES } from './utils/constants.js';
+import { validatePackageName, validateSearchQuery, validateLimit } from './utils/validators.js';
 
-const TOOL_DEFINITIONS = {
+const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   get_readme_from_composer: {
     name: 'get_readme_from_composer',
     description: 'Get Composer package README and usage examples from Packagist',
@@ -120,184 +104,103 @@ const TOOL_DEFINITIONS = {
   },
 } as const;
 
-export class ComposerPackageReadmeMcpServer {
-  private server: Server;
-
+export class ComposerPackageReadmeMcpServer extends BasePackageServer {
   constructor() {
-    this.server = new Server(
-      {
-        name: 'composer-package-readme-mcp',
-        version: '1.0.0',
-      },
-      {
-        capabilities: {
-          tools: {},
-          prompts: {},
-          resources: {}
-        }
-      }
-    );
-
-    this.setupHandlers();
-  }
-
-  private setupHandlers(): void {
-    // List available tools
-    (this.server as any).setRequestHandler(ListToolsRequestSchema, async () => {
-      return {
-        tools: Object.values(TOOL_DEFINITIONS),
-      };
-    });
-
-    // Handle prompts list
-    (this.server as any).setRequestHandler(ListPromptsRequestSchema, async () => {
-      return { prompts: [] };
-    });
-
-    // Handle resources list
-    (this.server as any).setRequestHandler(ListResourcesRequestSchema, async () => {
-      return { resources: [] };
-    });
-
-    // Handle tool calls
-    (this.server as any).setRequestHandler(CallToolRequestSchema, async (request: any, _extra: any) => {
-      const { name, arguments: args } = request.params;
-      
-
-      try {
-        // Validate that args is an object
-        if (!args || typeof args !== 'object') {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            'Tool arguments must be an object'
-          );
-        }
-
-        switch (name) {
-          case 'get_readme_from_composer':
-            if (!isGetPackageReadmeParams(args)) {
-              throw new McpError(
-                ErrorCode.InvalidParams,
-                'Invalid parameters for get_package_readme'
-              );
-            }
-            return await this.handleGetPackageReadme(args);
-          
-          case 'get_package_info_from_composer':
-            if (!isGetPackageInfoParams(args)) {
-              throw new McpError(
-                ErrorCode.InvalidParams,
-                'Invalid parameters for get_package_info'
-              );
-            }
-            return await this.handleGetPackageInfo(args);
-          
-          case 'search_packages_from_composer':
-            if (!isSearchPackagesParams(args)) {
-              throw new McpError(
-                ErrorCode.InvalidParams,
-                'Invalid parameters for search_packages'
-              );
-            }
-            return await this.handleSearchPackages(args);
-          
-          default:
-            throw new McpError(
-              ErrorCode.MethodNotFound,
-              `Unknown tool: ${name}`
-            );
-        }
-      } catch (error) {
-        logger.error(`Tool execution failed: ${name}`, { error, args });
-        
-        if (error instanceof PackageReadmeMcpError) {
-          throw new McpError(
-            this.mapErrorCode(error.code),
-            error.message,
-            error.details
-          );
-        }
-        
-        if (error instanceof McpError) {
-          throw error;
-        }
-        
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Internal error: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
+    super({
+      name: 'composer-package-readme-mcp',
+      version: '1.0.0',
     });
   }
 
-  private async handleGetPackageReadme(params: GetPackageReadmeParams) {
-    const result = await getPackageReadme(params);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(result, null, 2)
-        }
-      ]
-    };
+  protected getToolDefinitions(): Record<string, ToolDefinition> {
+    return TOOL_DEFINITIONS;
   }
 
-  private async handleGetPackageInfo(params: GetPackageInfoParams) {
-    const result = await getPackageInfo(params);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(result, null, 2)
-        }
-      ]
-    };
-  }
-
-  private async handleSearchPackages(params: SearchPackagesParams) {
-    const result = await searchPackages(params);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(result, null, 2)
-        }
-      ]
-    };
-  }
-
-  private mapErrorCode(code: string): ErrorCode {
-    switch (code) {
-      case 'PACKAGE_NOT_FOUND':
-      case 'VERSION_NOT_FOUND':
-        return ErrorCode.InvalidRequest;
-      case 'INVALID_PACKAGE_NAME':
-      case 'INVALID_VERSION':
-      case 'INVALID_SEARCH_QUERY':
-      case 'INVALID_LIMIT':
-      case 'INVALID_PACKAGE_TYPE':
-        return ErrorCode.InvalidParams;
-      case 'RATE_LIMIT_EXCEEDED':
-        return ErrorCode.InternalError; // Could be a custom error code
-      case 'NETWORK_ERROR':
-        return ErrorCode.InternalError;
-      default:
-        return ErrorCode.InternalError;
-    }
-  }
-
-  async run(): Promise<void> {
+  protected async handleToolCall(name: string, args: unknown): Promise<unknown> {
     try {
-      const transport = new StdioServerTransport();
-      await (this.server as any).connect(transport);
+      switch (name) {
+        case 'get_readme_from_composer':
+          return await getPackageReadme(this.validateGetPackageReadmeParams(args));
+        
+        case 'get_package_info_from_composer':
+          return await getPackageInfo(this.validateGetPackageInfoParams(args));
+        
+        case 'search_packages_from_composer':
+          return await searchPackages(this.validateSearchPackagesParams(args));
+        
+        default:
+          throw new Error(`Unknown tool: ${name}`);
+      }
     } catch (error) {
-      logger.error('Failed to start server transport', { error });
+      this.logger.error(`Tool execution failed: ${name}`, { error });
       throw error;
     }
   }
 
-  async stop(): Promise<void> {
-    await (this.server as any).close();
+  private validateGetPackageReadmeParams(args: unknown): GetPackageReadmeParams {
+    if (!args || typeof args !== 'object' || args === null) {
+      throw new Error('Invalid parameters: expected object');
+    }
+
+    const params = args as Record<string, unknown>;
+    
+    if (typeof params.package_name !== 'string') {
+      throw new Error('package_name is required and must be a string');
+    }
+
+    validatePackageName(params.package_name);
+
+    return {
+      package_name: params.package_name,
+      version: typeof params.version === 'string' ? params.version : 'latest',
+      include_examples: typeof params.include_examples === 'boolean' ? params.include_examples : true,
+    };
+  }
+
+  private validateGetPackageInfoParams(args: unknown): GetPackageInfoParams {
+    if (!args || typeof args !== 'object' || args === null) {
+      throw new Error('Invalid parameters: expected object');
+    }
+
+    const params = args as Record<string, unknown>;
+    
+    if (typeof params.package_name !== 'string') {
+      throw new Error('package_name is required and must be a string');
+    }
+
+    validatePackageName(params.package_name);
+
+    return {
+      package_name: params.package_name,
+      include_dependencies: typeof params.include_dependencies === 'boolean' ? params.include_dependencies : true,
+      include_dev_dependencies: typeof params.include_dev_dependencies === 'boolean' ? params.include_dev_dependencies : false,
+      include_suggestions: typeof params.include_suggestions === 'boolean' ? params.include_suggestions : false,
+    };
+  }
+
+  private validateSearchPackagesParams(args: unknown): SearchPackagesParams {
+    if (!args || typeof args !== 'object' || args === null) {
+      throw new Error('Invalid parameters: expected object');
+    }
+
+    const params = args as Record<string, unknown>;
+    
+    if (typeof params.query !== 'string') {
+      throw new Error('query is required and must be a string');
+    }
+
+    validateSearchQuery(params.query);
+
+    const limit = typeof params.limit === 'number' ? params.limit : 20;
+    validateLimit(limit);
+
+    return {
+      query: params.query,
+      limit,
+      quality: typeof params.quality === 'number' ? params.quality : undefined,
+      popularity: typeof params.popularity === 'number' ? params.popularity : undefined,
+      type: typeof params.type === 'string' ? params.type : undefined,
+    };
   }
 }
 

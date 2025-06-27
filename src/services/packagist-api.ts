@@ -2,6 +2,7 @@ import { logger } from '../utils/logger.js';
 import { handleApiError, handleHttpError, withRetry } from '../utils/error-handler.js';
 import { VersionResolver } from './version-resolver.js';
 import { API_CONSTANTS } from '../utils/constants.js';
+import { cache, createCacheKey } from './cache.js';
 import { 
   PackagistPackageInfo,
   PackagistVersionInfo,
@@ -55,6 +56,14 @@ export class PackagistApiClient {
   }
 
   async getPackageInfo(packageName: string): Promise<PackagistPackageInfo> {
+    // Check cache first
+    const cacheKey = createCacheKey.packageInfo(packageName, 'latest');
+    const cachedResult = cache.get<PackagistPackageInfo>(cacheKey);
+    if (cachedResult) {
+      logger.debug(`Cache hit for package info: ${packageName}`);
+      return cachedResult;
+    }
+
     const url = `${this.baseUrl}/${encodeURIComponent(packageName)}.json`;
     
     return withRetry(async () => {
@@ -77,6 +86,10 @@ export class PackagistApiClient {
         }
 
         const data = await response.json() as { package: PackagistPackageInfo };
+        
+        // Cache the result
+        cache.set(cacheKey, data.package, 30 * 60 * 1000); // 30 minutes TTL
+        
         logger.debug(`Successfully fetched package info: ${packageName}`);
         return data.package;
       } catch (error) {
@@ -109,6 +122,14 @@ export class PackagistApiClient {
     limit: number = 20,
     type?: string
   ): Promise<PackagistSearchResponse> {
+    // Check cache first
+    const cacheKey = createCacheKey.searchResults(query, limit, type);
+    const cachedResult = cache.get<PackagistSearchResponse>(cacheKey);
+    if (cachedResult) {
+      logger.debug(`Cache hit for search: ${query}`);
+      return cachedResult;
+    }
+
     const params = new URLSearchParams({
       q: query,
       per_page: limit.toString(),
@@ -140,6 +161,10 @@ export class PackagistApiClient {
         }
 
         const data = await response.json() as PackagistSearchResponse;
+        
+        // Cache the result
+        cache.set(cacheKey, data, 15 * 60 * 1000); // 15 minutes TTL for search results
+        
         logger.debug(`Successfully searched packages: ${query}, found ${data.total} results`);
         return data;
       } catch (error) {
