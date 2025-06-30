@@ -1,5 +1,4 @@
 import { logger } from '../utils/logger.js';
-import { validateSearchQuery, validateLimit, validatePackageType } from '../utils/validators.js';
 import { packagistApi } from '../services/packagist-api.js';
 import { withCache, createSearchCacheKey } from '../utils/cache-helpers.js';
 import { CACHE_CONSTANTS } from '../utils/constants.js';
@@ -13,14 +12,6 @@ export async function searchPackages(params: SearchPackagesParams): Promise<Sear
   const { query, limit = 20, quality, popularity, type } = params;
 
   logger.info(`Searching packages: ${query} (limit: ${limit})`);
-
-  // Validate inputs
-  validateSearchQuery(query);
-  validateLimit(limit);
-  
-  if (type) {
-    validatePackageType(type);
-  }
 
   const cacheKey = createSearchCacheKey(query, limit, type);
   

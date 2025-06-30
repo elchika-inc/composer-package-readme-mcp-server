@@ -1,5 +1,4 @@
 import { logger } from '../utils/logger.js';
-import { validatePackageName } from '../utils/validators.js';
 import { packagistApi } from '../services/packagist-api.js';
 import { withCache, createPackageInfoCacheKey } from '../utils/cache-helpers.js';
 import {
@@ -18,9 +17,6 @@ export async function getPackageInfo(params: GetPackageInfoParams): Promise<Pack
 
   logger.info(`Fetching package info: ${package_name}`);
 
-  // Validate inputs
-  validatePackageName(package_name);
-
   const cacheKey = createPackageInfoCacheKey(package_name);
   
   return withCache(cacheKey, async () => {
@@ -32,7 +28,7 @@ async function fetchPackageInfo(
   packageName: string,
   includeDependencies: boolean,
   includeDevDependencies: boolean,
-  includeSuggestions: boolean
+  _includeSuggestions: boolean
 ): Promise<PackageInfoResponse> {
 
   try {

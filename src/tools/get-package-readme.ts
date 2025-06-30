@@ -1,28 +1,19 @@
 import { logger } from '../utils/logger.js';
-import { validatePackageName, validateVersion } from '../utils/validators.js';
 import { packagistApi } from '../services/packagist-api.js';
 import { githubApi } from '../services/github-api.js';
 import { readmeParser } from '../services/readme-parser.js';
 import { withCache, createPackageReadmeCacheKey } from '../utils/cache-helpers.js';
+import { ResponseBuilder } from '../utils/response-builder.js';
 import {
   GetPackageReadmeParams,
   PackageReadmeResponse,
-  InstallationInfo,
-  PackageBasicInfo,
   RepositoryInfo,
-  PackagistVersionInfo,
 } from '../types/index.js';
 
 export async function getPackageReadme(params: GetPackageReadmeParams): Promise<PackageReadmeResponse> {
   const { package_name, version = 'latest', include_examples = true } = params;
 
   logger.info(`Fetching package README: ${package_name}@${version}`);
-
-  // Validate inputs
-  validatePackageName(package_name);
-  if (version !== 'latest') {
-    validateVersion(version);
-  }
 
   const cacheKey = createPackageReadmeCacheKey(package_name, version);
   
@@ -36,140 +27,75 @@ async function fetchPackageReadme(
   version: string, 
   includeExamples: boolean
 ): Promise<PackageReadmeResponse> {
-
   try {
-    // Get package info from Packagist directly
-    let versionInfo;
+    const versionInfo = await getVersionInfo(packageName, version);
+    const readmeContent = await getReadmeContent(versionInfo, packageName);
     
-    try {
-      logger.debug(`Getting package info for: ${packageName}@${version}`);
-      versionInfo = await packagistApi.getVersionInfo(packageName, version);
-    } catch (error) {
-      // If package not found, return a response indicating non-existence
-      logger.debug(`Package not found: ${packageName}`);
-      return {
-        package_name: packageName,
-        version: version || 'latest',
-        description: 'Package not found',
-        readme_content: '',
-        usage_examples: [],
-        installation: {
-          composer: `composer require ${packageName}`,
-          version: version !== 'latest' ? version : undefined,
-        },
-        basic_info: {
-          name: packageName,
-          version: version || 'latest',
-          description: 'Package not found',
-          type: 'library',
-          license: 'Unknown',
-          authors: [],
-          keywords: [],
-          homepage: undefined,
-        },
-        exists: false,
-      };
-    }
-    
-    logger.debug(`Package info retrieved for: ${packageName}@${versionInfo.version}`);
-
-    // Get actual version string (in case we requested 'latest')
-    const actualVersion = versionInfo.version;
-
-    // Try to get README content
-    let readmeContent = '';
-    let readmeSource = 'none';
-
-    // Try to get README from GitHub repository
-    if (versionInfo.source && versionInfo.source.url) {
-      const repository: RepositoryInfo = {
-        type: versionInfo.source.type,
-        url: versionInfo.source.url,
-        reference: versionInfo.source.reference,
-      };
-      
-      const githubReadme = await githubApi.getReadmeFromRepository(repository);
-      if (githubReadme) {
-        readmeContent = githubReadme;
-        readmeSource = 'github';
-        logger.debug(`Got README from GitHub: ${packageName}`);
-      }
-    }
-
-    // Clean and process README content
-    const cleanedReadme = readmeParser.cleanMarkdown(readmeContent);
-    
-    // Extract usage examples
-    const usageExamples = readmeParser.parseUsageExamples(readmeContent, includeExamples);
-
-    // Create installation info
-    const installation = createInstallationInfo(packageName, actualVersion);
-
-    // Create basic info
-    const basicInfo = createBasicInfo(versionInfo, actualVersion);
-
-    // Create repository info
-    const repository = createRepositoryInfo(versionInfo);
-
-    // Get download stats
-    const downloadStats = await packagistApi.getDownloadStats(packageName);
-
-    // Create response
-    const response: PackageReadmeResponse = {
-      package_name: packageName,
-      version: actualVersion,
-      description: basicInfo.description,
-      readme_content: cleanedReadme,
-      usage_examples: usageExamples,
-      installation,
-      basic_info: basicInfo,
-      repository,
-      download_stats: downloadStats,
-      exists: true,
-    };
-
-    logger.info(`Successfully fetched package README: ${packageName}@${actualVersion} (README source: ${readmeSource})`);
-    return response;
-
+    return buildSuccessResponse(packageName, versionInfo, readmeContent, includeExamples);
   } catch (error) {
+    if ((error as Error).message.includes('not found')) {
+      return ResponseBuilder.createNotFoundResponse(packageName, version);
+    }
     logger.error(`Failed to fetch package README: ${packageName}@${version}`, { error });
     throw error;
   }
 }
 
-function createInstallationInfo(packageName: string, version: string): InstallationInfo {
-  return {
-    composer: `composer require ${packageName}`,
-    ...(version !== 'dev-master' && { version }),
-  };
-}
-
-function createBasicInfo(versionInfo: PackagistVersionInfo, actualVersion: string): PackageBasicInfo {
-  return {
-    name: versionInfo.name,
-    version: actualVersion,
-    description: versionInfo.description || 'No description available',
-    type: versionInfo.type || 'library',
-    homepage: versionInfo.homepage || undefined,
-    license: versionInfo.license || ['Unknown'],
-    authors: versionInfo.authors || [],
-    keywords: versionInfo.keywords || [],
-    ...(versionInfo.minimum_stability && { minimum_stability: versionInfo.minimum_stability }),
-    require: versionInfo.require,
-    require_dev: versionInfo.require_dev,
-    suggest: versionInfo.suggest,
-    autoload: versionInfo.autoload,
-  };
-}
-
-function createRepositoryInfo(versionInfo: PackagistVersionInfo): RepositoryInfo | undefined {
-  if (!versionInfo.source) {
-    return undefined;
+async function getVersionInfo(packageName: string, version: string) {
+  try {
+    logger.debug(`Getting package info for: ${packageName}@${version}`);
+    return await packagistApi.getVersionInfo(packageName, version);
+  } catch (error) {
+    logger.debug(`Package not found: ${packageName}`);
+    throw new Error(`Package ${packageName} not found`);
   }
-  
-  return {
+}
+
+async function getReadmeContent(versionInfo: any, packageName: string): Promise<string> {
+  if (!versionInfo.source?.url) {
+    return '';
+  }
+
+  const repository: RepositoryInfo = {
     type: versionInfo.source.type,
     url: versionInfo.source.url,
     reference: versionInfo.source.reference,
   };
+  
+  const githubReadme = await githubApi.getReadmeFromRepository(repository);
+  if (githubReadme) {
+    logger.debug(`Got README from GitHub: ${packageName}`);
+    return githubReadme;
+  }
+  
+  return '';
 }
+
+async function buildSuccessResponse(
+  packageName: string,
+  versionInfo: any,
+  readmeContent: string,
+  includeExamples: boolean
+): Promise<PackageReadmeResponse> {
+  const actualVersion = versionInfo.version;
+  const cleanedReadme = readmeParser.cleanMarkdown(readmeContent);
+  const usageExamples = readmeParser.parseUsageExamples(readmeContent, includeExamples);
+  const downloadStats = await packagistApi.getDownloadStats(packageName);
+
+  const response: PackageReadmeResponse = {
+    package_name: packageName,
+    version: actualVersion,
+    description: ResponseBuilder.createBasicInfo(versionInfo, actualVersion).description,
+    readme_content: cleanedReadme,
+    usage_examples: usageExamples,
+    installation: ResponseBuilder.createInstallationInfo(packageName, actualVersion),
+    basic_info: ResponseBuilder.createBasicInfo(versionInfo, actualVersion),
+    repository: ResponseBuilder.createRepositoryInfo(versionInfo),
+    download_stats: downloadStats,
+    exists: true,
+  };
+
+  logger.info(`Successfully fetched package README: ${packageName}@${actualVersion}`);
+  return response;
+}
+

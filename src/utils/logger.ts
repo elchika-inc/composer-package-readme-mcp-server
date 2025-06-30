@@ -5,12 +5,6 @@ export enum LogLevel {
   DEBUG = 3,
 }
 
-interface LogEntry {
-  level: LogLevel;
-  message: string;
-  timestamp: Date;
-  data?: unknown;
-}
 
 class Logger {
   private logLevel: LogLevel;
@@ -81,4 +75,9 @@ class Logger {
   }
 }
 
-export const logger = new Logger(LogLevel.WARN);
+const getLogLevelFromEnv = (): LogLevel => {
+  const level = process.env.LOG_LEVEL?.toUpperCase();
+  return LogLevel[level as keyof typeof LogLevel] ?? LogLevel.INFO;
+};
+
+export const logger = new Logger(getLogLevelFromEnv());

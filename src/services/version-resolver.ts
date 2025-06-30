@@ -1,13 +1,16 @@
-import { logger } from '../utils/logger.js';
 import { PackagistVersionInfo } from '../types/index.js';
 
 export class VersionResolver {
   static resolveVersion(
-    packageVersions: Record<string, PackagistVersionInfo>,
+    packageVersions: Record<string, PackagistVersionInfo> | null | undefined,
     requestedVersion: string
   ): string {
     if (requestedVersion !== 'latest' && requestedVersion !== 'dev-master') {
       return requestedVersion;
+    }
+
+    if (!packageVersions) {
+      return requestedVersion === 'latest' ? 'dev-master' : requestedVersion;
     }
 
     const versions = Object.keys(packageVersions);
